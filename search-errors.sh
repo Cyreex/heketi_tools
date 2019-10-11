@@ -1,3 +1,5 @@
+#/bin/bash
+
 gv=$(kubectl exec -it -n glusterfs $(kubectl get po -n glusterfs | \
 grep -v -E"heketi|backup|NAME" | awk '{print $1}' | \
 head -1) gluster v list > /tmp/gv; sed -e "s/\r//g" /tmp/gv)
