@@ -30,3 +30,20 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
       echo $i 
     fi 
 done
+
+####
+echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
+
+gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | awk '{print $1}')
+for i in $gluster_pods; do
+  echo "GLUSTER POD: $i"
+  gi=$(kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi; sed -e "s/\r//g" /tmp/gi)
+  vol_name=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_ > /tmp/vol_name; sed -e "s/\r//g" /tmp/vol_name)
+  bricks=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick; sed -e "s/\r//g" /tmp/brick)
+  for brick in $bricks; do 
+    count=$(echo $gi | grep $brick -c)
+      if [ $count -eq 0 ]; then 
+        echo $brick
+      fi
+  done
+done
