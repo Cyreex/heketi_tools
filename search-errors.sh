@@ -32,11 +32,20 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
 done
 
 ####
+look_it_ip_lv() {
+  lvcount=$(lvs | grep $brick -c)
+  if [ $lvcount -ne 0 ]; then
+    echo "lv is EXISTS"
+  else
+    echo "lv count = 0, we can just delete dir"
+  fi
+}
+
 echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
 
 gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | awk '{print $1}')
 for i in $gluster_pods; do
-  echo "GLUSTER POD: $i"
+  kubectl get po -n glusterfs $i -o wide
   gi=$(kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi; sed -e "s/\r//g" /tmp/gi)
   vol_name=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_ > /tmp/vol_name; sed -e "s/\r//g" /tmp/vol_name)
   bricks=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick; sed -e "s/\r//g" /tmp/brick)
@@ -44,6 +53,24 @@ for i in $gluster_pods; do
     count=$(echo $gi | grep $brick -c)
       if [ $count -eq 0 ]; then 
         echo $brick
+        look_it_ip_lv
       fi
   done
 done
+
+###Function that we run manually in Gluster container
+delete_bricks_without_lvs() {
+  vol_name=$(ls /var/lib/heketi/mounts/ | grep vg_)
+  bricks=$(ls /var/lib/heketi/mounts/$vol_name)
+  for brick in $bricks; do 
+    count=$(lvdisplay | grep Name| grep $brick -c)
+    if [ $count -eq 0 ]; then
+      fstab=$(cat /var/lib/heketi/fstab | grep $brick -c)
+        if [ $fstab -eq 0 ]; then 
+          echo "We can JUST delete the brick $brick"
+        else 
+          echo "We need to change FSTAB for $brick"
+        fi
+    fi
+  done
+}
