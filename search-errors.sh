@@ -51,17 +51,22 @@ done
 
 ####
 search_lv_and_fix_it() {
-  lvcount=$(kubectl exec -it -n glusterfs $i -- lvs | grep $brick -c)
-  if [ $lvcount -ne 0 ]; then
-    echo "lv is EXISTS"
-  else
-    echo "lv doesn't exists!"
-    if [ ${softfix^^} = "YES"]; then
-      #softfix: copy this folder to /tmp (will be deleted after container restart)
-      echo "Copy brick $brick to $backup_folder on host"
-      kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
-      echo "Remove brick $brick"
-      kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+  if [ ${softfix^^} = "YES"]; then
+    #softfix: copy this folder to /tmp (will be deleted after container restart)
+    echo "Copy brick $brick to $backup_folder on host"
+    kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+    echo "Remove brick $brick"
+    kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+    #If LV is exists, we need to delete it
+    lvcount=$(kubectl exec -it -n glusterfs $i -- lvs | grep $brick -c)
+    if [ $lvcount -eq 1 ] && [ ${hardfix} = "YES"]; then
+      sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
+      if [ ${sure^^} = "Y"]; then
+        echo "LV will be deleted!"
+        kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
+      else
+        echo "Oh, dude..."
+      fi
     fi
   fi
 }
