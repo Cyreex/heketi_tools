@@ -96,7 +96,7 @@ gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | aw
 for i in $gluster_pods; do
 
   #Create the backup of fstab
-  if [ "${softfix^^}" = "YES"]; then
+  if [ "${softfix^^}" = "YES" ]; then
     pandora="NO"
     echo -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO" pandora
     if [ "${pandora^^}" = "YES" ]; then
