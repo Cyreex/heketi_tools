@@ -99,7 +99,12 @@ for i in $gluster_pods; do
   if [ "${softfix^^}" = "YES"]; then
     pandora="NO"
     echo -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO" pandora
-    if [ "${pandora^^}" = "YES" ]; echo "LET'S ROCK!"; else "Good choise, man!"; exit 1; fi
+    if [ "${pandora^^}" = "YES" ]; then
+      echo "LET'S ROCK!" 
+    else 
+      echo "Good choise, man!" 
+      exit 1 
+    fi
     backup_dir="/tmp/backup_$i_$(date +%s)"
     mkdir $backup_dir
     kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
