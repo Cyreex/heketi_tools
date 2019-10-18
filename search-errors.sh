@@ -7,6 +7,8 @@
 #
 #softfix YES - make some soft fix:
 #  - delete folders related with noexists bricks on glusterfs
+softfix="NO"
+hardfix="NO"
 
 read -p "Can I make Soft Fix? yes/NO:" softfix
 if [ ${softfix^^} = "YES" ]; then
