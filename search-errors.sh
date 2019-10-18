@@ -57,16 +57,20 @@ search_lv_and fix_it() {
     echo "lv is EXISTS"
   else
     echo "lv doesn't exists!"
-    #softfix: move this folder to /tmp (will be deleted after container restart)
-    if [ $fstabcount -eq 0 ] && [ ${softfix^^} = "YES"]; then
-      echo "$move brick $brick to /tmp"
-      kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
+    if [ ${softfix^^} = "YES"]; then
+      #softfix: move this folder to /tmp (will be deleted after container restart)
+      if [ $fstabcount -eq 0 ]; then
+        echo "Copy brick $brick to /tmp on host"
+        kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+        kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+      fi
+      if [ $fstabcount -ne 0 ]; then
+        echo "$move brick $brick to /tmp"
+        kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
+        echo "Delete mount point for brick $brick from the fstab"
+        kubectl exec -it -n glusterfs $i --sed -i.save "/${brick}/d" /var/lib/heketi/fstab
+      fi
     fi
-    if [ $fstabcount -ne 0 ] && [ ${softfix^^} = "YES"]; then
-      echo "$move brick $brick to /tmp"
-      kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
-      echo "Delete mount point for brick $brick from the fstab"
-    fi    
   fi
 }
 
@@ -74,6 +78,13 @@ echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
 
 gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | awk '{print $1}')
 for i in $gluster_pods; do
+  #Create the backup of fstab
+  if [ ${softfix^^} = "YES"]; then
+    backup_dir="/tmp/backup_$i_$(date +%s)"
+    mkdir $backup_dir
+    kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
+  fi
+  
   kubectl get po -n glusterfs $i -o wide
   gi=$(kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi; sed -e "s/\r//g" /tmp/gi)
   vol_name=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_ > /tmp/vol_name; sed -e "s/\r//g" /tmp/vol_name)
