@@ -5,6 +5,8 @@
 #chmod +x search-errors.sh
 #./search-errors.sh
 #
+#                   https://help.tpondemand.net/fix-heketi-lost-volumes/
+#
 #softfix YES - make some soft fix:
 #  - delete folders related with noexists bricks on glusterfs
 softfix="NO"
@@ -33,7 +35,9 @@ head -1) gluster v list > /tmp/gv; sed -e "s/\r//g" /tmp/gv)
 hv=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -- heketi-cli volume list | \
 awk -F":"  '{print $4}'  > /tmp/hv; sed -e "s/\r//g" /tmp/hv)
 
-echo "These volumes we have in the Heketi but don't have in the Gluster (lost data):" 
+echo "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
+#You can delete these volumes from heketi manually:
+#
 for i in $hv; do  
   count=$(echo $gv | grep $i -c) 
   if [ $count -eq 0 ]; then 
@@ -57,7 +61,11 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
     fi 
 done
 
-####
+######################## PAIN ########################################
+#Our primary problem - we don't use LV, but LV aren't deleted. 
+#We can have not enough free space in the Gluster volumes to creating a new volume or expand another one.
+#This is really problem that we are need to fix ASAP. 
+#####################################################################
 
 backup_brick() {
   echo "Copy brick $brick to $backup_folder on host"
@@ -130,3 +138,9 @@ for i in $gluster_pods; do
   done
 done
 
+#Resync heketi volumes
+if [ "${softfix^^}" = "YES"]; then
+  kubectl exec -it -n glusterfs glusterfs-heketi-0 -- \
+    for i in $(heketi-cli topology info | grep Free | awk '{print $1}' | cut -d":" -f 2); do \
+    heketi-cli device resync $i; done
+fi
