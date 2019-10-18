@@ -50,26 +50,18 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
 done
 
 ####
-search_lv_and fix_it() {
+search_lv_and_fix_it() {
   lvcount=$(kubectl exec -it -n glusterfs $i -- lvs | grep $brick -c)
-  fstabcount=$(kubectl exec -it -n glusterfs $i -- cat /var/lib/heketi/fstab| grep $brick -c)
   if [ $lvcount -ne 0 ]; then
     echo "lv is EXISTS"
   else
     echo "lv doesn't exists!"
     if [ ${softfix^^} = "YES"]; then
-      #softfix: move this folder to /tmp (will be deleted after container restart)
-      if [ $fstabcount -eq 0 ]; then
-        echo "Copy brick $brick to /tmp on host"
-        kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
-        kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
-      fi
-      if [ $fstabcount -ne 0 ]; then
-        echo "$move brick $brick to /tmp"
-        kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
-        echo "Delete mount point for brick $brick from the fstab"
-        kubectl exec -it -n glusterfs $i --sed -i.save "/${brick}/d" /var/lib/heketi/fstab
-      fi
+      #softfix: copy this folder to /tmp (will be deleted after container restart)
+      echo "Copy brick $brick to $backup_folder on host"
+      kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+      echo "Remove brick $brick"
+      kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
     fi
   fi
 }
@@ -93,7 +85,7 @@ for i in $gluster_pods; do
     count=$(echo $gi | grep $brick -c)
       if [ $count -eq 0 ]; then 
         echo $brick
-        kubectl exec -it -n glusterfs $i -- search_lv_and fix_it
+        search_lv_and_fix_it
       fi
   done
 done
