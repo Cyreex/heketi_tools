@@ -1,7 +1,13 @@
 #/bin/bash
 
+#How to run this script:
+#wget -v -O search-errors.sh  https://raw.githubusercontent.com/Cyreex/sh/master/search-errors.sh
+#chmod +x search-errors.sh
+#./search-errors.sh
+#
 #softfix YES - make some soft fix:
 #  - delete folders related with noexists bricks on glusterfs
+
 read -p "Can I make Soft Fix? yes/NO:" softfix
 if [ ${softfix^^} = "YES" ]; then
   echo "We'll delete folders for noexists bricks"
@@ -95,19 +101,22 @@ for i in $gluster_pods; do
   #Find lost bricks and fix these
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
-      if [ $count -eq 0 ]; then 
-        echo $brick
-        lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep $brick -c)
-        if [ $lvcount -eq 0 ]; then
-          echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
-          if [ ${softfix^^} = "YES"]; then search_unused_bricks; fi
-        fi
-        if [ $lvcount -eq 1 ]; then
-          echo "Brick $brick RELATED with ONE LV. We need to delete LV as well"
-          if [ ${hardfix^^} = "YES"]; then search_and_delete_lost_lv; fi
-        fi 
-       
-      fi
+    if [ $count -eq 0 ]; then 
+      echo $brick
+      lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep $brick -c)
+      case $lvcount in
+        0) 
+        echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
+        if [ ${softfix^^} = "YES"]; then search_unused_bricks; fi
+        ;;
+        1)
+        echo "Brick $brick RELATED with ONE LV. We need to delete LV as well"
+        if [ ${hardfix^^} = "YES"]; then search_and_delete_lost_lv; fi
+        ;;
+        *)
+        echo "ERROR: Something went wrong with brick $brick"
+        ;;
+    fi
   done
 done
 
