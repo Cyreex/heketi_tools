@@ -50,52 +50,68 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
 done
 
 ####
-search_lv_and_fix_it() {
-  if [ ${softfix^^} = "YES"]; then
-    #softfix: copy this folder to /tmp (will be deleted after container restart)
-    echo "Copy brick $brick to $backup_folder on host"
-    kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
-    echo "Remove brick $brick"
-    kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
-    #If LV is exists, we need to delete it
-    lvcount=$(kubectl exec -it -n glusterfs $i -- lvs | grep $brick -c)
-    if [ $lvcount -eq 1 ] && [ ${hardfix} = "YES"]; then
-      sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
-      if [ ${sure^^} = "Y"]; then
-        echo "LV will be deleted!"
-        kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
-      else
-        echo "Oh, dude..."
-      fi
+search_unused_bricks() {
+  echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
+  #softfix: copy this folder to /tmp (will be deleted after container restart)
+  echo "Copy brick $brick to $backup_folder on host"
+  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+  echo "Remove brick $brick"
+  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+}
+
+search_and_delete_lost_lv() {
+  if [ $lvcount -eq 1 ]; then
+    sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
+    #Third "if" makes me cry, but looks so clear and safe... 
+    if [ ${sure^^} = "Y"]; then
+      echo "LV will be deleted!"
+      kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
+    else
+      echo "Oh, dude..."
     fi
   fi
+
 }
 
 echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
 
 gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | awk '{print $1}')
 for i in $gluster_pods; do
+
   #Create the backup of fstab
   if [ ${softfix^^} = "YES"]; then
     backup_dir="/tmp/backup_$i_$(date +%s)"
     mkdir $backup_dir
     kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
   fi
-  
+  #Show GlusterFS POD which we use in this step
   kubectl get po -n glusterfs $i -o wide
+  #Get information about ALL gluster volumes
   gi=$(kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi; sed -e "s/\r//g" /tmp/gi)
+  #Get VG name that this GlusterFS container use
   vol_name=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_ > /tmp/vol_name; sed -e "s/\r//g" /tmp/vol_name)
+  #Get bricks registered in gluster on this container
   bricks=$(kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick; sed -e "s/\r//g" /tmp/brick)
+  #Find lost bricks and fix these
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
       if [ $count -eq 0 ]; then 
         echo $brick
-        search_lv_and_fix_it
+        lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep $brick -c)
+        if [ $lvcount -eq 0 ]; then
+          echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
+          if [ ${softfix^^} = "YES"]; then search_unused_bricks; fi
+        fi
+        if [ $lvcount -eq 1 ]; then
+          echo "Brick $brick RELATED with ONE LV. We need to delete LV as well"
+          if [ ${hardfix^^} = "YES"]; then search_and_delete_lost_lv; fi
+        fi 
+       
       fi
   done
 done
 
-###Function that we run manually in Gluster container
+###Function that we can run MANUALLY in Gluster container
 delete_bricks_without_lvs() {
   vol_name=$(ls /var/lib/heketi/mounts/ | grep vg_)
   bricks=$(ls /var/lib/heketi/mounts/$vol_name)
