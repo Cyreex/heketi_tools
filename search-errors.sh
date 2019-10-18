@@ -11,14 +11,14 @@ softfix="NO"
 hardfix="NO"
 
 read -p "Can I make Soft Fix? yes/NO:" softfix
-if [ ${softfix^^} = "YES" ]; then
+if [ "${softfix^^}" = "YES" ]; then
   echo "We'll delete folders for noexists bricks"
   read -p "Can we do Hard Fix? Are you sure? yes/NO" hardfix
 else
   echo "Soft fix is disabled"
 fi
 
-if [ ${hardfix^^} = "YES" ]; then
+if [ "${hardfix^^}" = "YES" ]; then
   echo "Hard Fix is enabled! Get ready to save you ass!"
 else
   echo "Hard fix is disabled. Your ass is safe :)"
@@ -58,27 +58,28 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
 done
 
 ####
-search_unused_bricks() {
-  echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
-  #softfix: copy this folder to /tmp (will be deleted after container restart)
+
+backup_brick() {
   echo "Copy brick $brick to $backup_folder on host"
   kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+}
+
+remove_brick() {
   echo "Remove brick $brick"
-  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick; sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
 
 search_and_delete_lost_lv() {
-  if [ $lvcount -eq 1 ]; then
-    sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
-    #Third "if" makes me cry, but looks so clear and safe... 
-    if [ ${sure^^} = "Y"]; then
-      echo "LV will be deleted!"
-      kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
-    else
-      echo "Oh, dude..."
-    fi
+  backup_brick
+  sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
+  if [ "${sure^^}" = "Y"]; then
+    echo "LV will be deleted!"
+    kubectl exec -it -n glusterfs $i -- umount /var/lib/heketi/mounts/$vol_name/$brick; \
+      lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
+    remove_brick
+  else
+    echo "Oh, dude..."
   fi
-
 }
 
 echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
@@ -87,7 +88,10 @@ gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | aw
 for i in $gluster_pods; do
 
   #Create the backup of fstab
-  if [ ${softfix^^} = "YES"]; then
+  if [ "${softfix^^}" = "YES"]; then
+    pandora="NO"
+    echo -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO" pandora
+    if [ "${pandora^^}" = "YES" ]; echo "LET'S ROCK!"; else "Good choise, man!"; exit 1; fi
     backup_dir="/tmp/backup_$i_$(date +%s)"
     mkdir $backup_dir
     kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
@@ -105,37 +109,24 @@ for i in $gluster_pods; do
     count=$(echo $gi | grep $brick -c)
     if [ $count -eq 0 ]; then 
       echo $brick
-      lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep $brick -c)
+      lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep $brick -c)   
+      #if we didn't find LV with the name eq brick name, we can just delete folder and delete mount point in /var/lib/heketi/fstab
       case $lvcount in
         0) 
         echo "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
-        if [ ${softfix^^} = "YES"]; then search_unused_bricks; fi
+        if [ "${softfix^^}" = "YES" ]; then backup_brick; remove_brick; fi
         ;;
+        #if we find one LV, we need do backup and remove brick, then remove LV
         1)
         echo "Brick $brick RELATED with ONE LV. We need to delete LV as well"
-        if [ ${hardfix^^} = "YES"]; then search_and_delete_lost_lv; fi
+        if [ "${hardfix^^}" = "YES" ]; then search_and_delete_lost_lv; fi
         ;;
+        #If we found more than one volume - this is so strange... Better check it manually
         *)
-        echo "ERROR: Something went wrong with brick $brick"
+        echo "ERROR: Something went wrong with brick $brick - lvcount=$lvcount"
         ;;
       esac
     fi
   done
 done
 
-###Function that we can run MANUALLY in Gluster container
-delete_bricks_without_lvs() {
-  vol_name=$(ls /var/lib/heketi/mounts/ | grep vg_)
-  bricks=$(ls /var/lib/heketi/mounts/$vol_name)
-  for brick in $bricks; do 
-    count=$(lvdisplay | grep Name| grep $brick -c)
-    if [ $count -eq 0 ]; then
-      fstab=$(cat /var/lib/heketi/fstab | grep $brick -c)
-        if [ $fstab -eq 0 ]; then 
-          echo "We can JUST delete the brick $brick"
-        else 
-          echo "We need to change FSTAB for $brick"
-        fi
-    fi
-  done
-}
