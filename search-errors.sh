@@ -118,6 +118,7 @@ for i in $gluster_pods; do
         *)
         echo "ERROR: Something went wrong with brick $brick"
         ;;
+      esac
     fi
   done
 done
