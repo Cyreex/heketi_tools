@@ -1,9 +1,27 @@
 #/bin/bash
 
+#softfix YES - make some soft fix:
+#  - delete folders related with noexists bricks on glusterfs
+read -p "Can I make Soft Fix? yes/NO:" softfix
+if [ ${softfix^^} = "YES" ]; then
+  echo "We'll delete folders for noexists bricks"
+  read -p "Can we do Hard Fix? Are you sure? yes/NO" hardfix
+else
+  echo "Soft fix is disabled"
+fi
+
+if [ ${hardfix^^} = "YES" ]; then
+  echo "Hard Fix is enabled! Get ready to save you ass!"
+else
+  echo "Hard fix is disabled. Your ass is safe :)"
+fi
+
+#get all gluster volumes
 gv=$(kubectl exec -it -n glusterfs $(kubectl get po -n glusterfs | \
 grep -v -E"heketi|backup|NAME" | awk '{print $1}' | \
 head -1) gluster v list > /tmp/gv; sed -e "s/\r//g" /tmp/gv)
 
+#Get list of heketi volumes
 hv=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -- heketi-cli volume list | \
 awk -F":"  '{print $4}'  > /tmp/hv; sed -e "s/\r//g" /tmp/hv)
 
@@ -32,12 +50,23 @@ for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do
 done
 
 ####
-look_it_ip_lv() {
-  lvcount=$(lvs | grep $brick -c)
+search_lv_and fix_it() {
+  lvcount=$(kubectl exec -it -n glusterfs $i -- lvs | grep $brick -c)
+  fstabcount=$(kubectl exec -it -n glusterfs $i -- cat /var/lib/heketi/fstab| grep $brick -c)
   if [ $lvcount -ne 0 ]; then
     echo "lv is EXISTS"
   else
-    echo "lv count = 0, we can just delete dir"
+    echo "lv doesn't exists!"
+    #softfix: move this folder to /tmp (will be deleted after container restart)
+    if [ $fstabcount -eq 0 ] && [ ${softfix^^} = "YES"]; then
+      echo "$move brick $brick to /tmp"
+      kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
+    fi
+    if [ $fstabcount -ne 0 ] && [ ${softfix^^} = "YES"]; then
+      echo "$move brick $brick to /tmp"
+      kubectl exec -it -n glusterfs $i -- mv /var/lib/heketi/mounts/$vol_name/$brick /tmp/
+      echo "Delete mount point for brick $brick from the fstab"
+    fi    
   fi
 }
 
@@ -53,7 +82,7 @@ for i in $gluster_pods; do
     count=$(echo $gi | grep $brick -c)
       if [ $count -eq 0 ]; then 
         echo $brick
-        look_it_ip_lv
+        kubectl exec -it -n glusterfs $i -- search_lv_and fix_it
       fi
   done
 done
