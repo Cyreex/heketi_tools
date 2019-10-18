@@ -74,7 +74,8 @@ backup_brick() {
 
 remove_brick() {
   echo "Remove brick $brick"
-  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick; sed -i.save "/${brick}/d" /var/lib/heketi/fstab
+  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick 
+  kubectl exec -it -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
 
 search_and_delete_lost_lv() {
@@ -82,8 +83,8 @@ search_and_delete_lost_lv() {
   sure="n"; echo -p "LV $brick will be deleted. Are you sure? y/N" sure
   if [ "${sure^^}" = "Y"]; then
     echo "LV will be deleted!"
-    kubectl exec -it -n glusterfs $i -- umount /var/lib/heketi/mounts/$vol_name/$brick; \
-      lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
+    kubectl exec -it -n glusterfs $i -- umount /var/lib/heketi/mounts/$vol_name/$brick
+    kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
     remove_brick
   else
     echo "Oh, dude..."
@@ -92,7 +93,7 @@ search_and_delete_lost_lv() {
 
 echo "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
 
-gluster_pods=$(kubectl get po -n glusterfs | grep -v -E"heketi|backup|NAME" | awk '{print $1}')
+gluster_pods=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[*].metadata.name}')
 for i in $gluster_pods; do
 
   #Create the backup of fstab
