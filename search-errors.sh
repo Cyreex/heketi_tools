@@ -7,12 +7,11 @@
 #
 #                   https://help.tpondemand.net/fix-heketi-lost-volumes/
 #
-#softfix YES - make some soft fix:
+#fixProblems YES - make some soft fix:
 #  - delete folders related with noexists bricks on glusterfs
-#hardfix YES - lost LV will be deleted!
+#  - lost LV will be deleted!
 
-softfix="NO"
-hardfix="NO"
+fixProblems="NO"
 
 timestamp=$(date +%s)
 logFileName="/tmp/SearchErrors_$timestamp.txt"
@@ -24,18 +23,11 @@ logs() {
   echo -en "${GREEN} $1 ${NORMAL} \n"
 }
 
-read -p "Can I make Soft Fix? yes/NO: " softfix
-if [ "${softfix^^}" = "YES" ]; then
-  logs "We'll delete folders for noexists bricks"
-  read -p "Can we do Hard Fix? Are you sure? yes/NO " hardfix
+read -p "Can I Fix problems? yes/NO: " fixProblems
+if [ "${fixProblems^^}" = "YES" ]; then
+  logs "We'll try to fix errors"
 else
-  logs "Soft fix is disabled"
-fi
-
-if [ "${hardfix^^}" = "YES" ]; then
-  logs "Hard Fix is enabled! Get ready to save you ass!"
-else
-  logs "Hard fix is disabled. Your ass is safe :)"
+  logs "Fix problems disabled"
 fi
 
 #get all gluster volumes
@@ -121,7 +113,7 @@ gluster_pods=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath
 for i in $gluster_pods; do
 
   #Create the backup of fstab
-  if [ "${softfix^^}" = "YES" ]; then
+  if [ "${fixProblems^^}" = "YES" ]; then
     pandora="NO"
     read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO " pandora
     
@@ -147,9 +139,6 @@ for i in $gluster_pods; do
   #Get bricks registered in gluster on this container
   kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick
   bricks=$(sed -e "s/\r//g" /tmp/brick)
-  #Get bricks logical volumes
-  kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/brick_lv
-  bricks_lv=$(sed -e "s/\r//g" /tmp/brick_lv)
   #Find lost bricks and fix these
   logs "............ Check bricks mount paths ..................."
   for brick in $bricks; do 
@@ -160,18 +149,18 @@ for i in $gluster_pods; do
       #if we didn't find LV with the name eq brick name, we can just delete folder and delete mount point in /var/lib/heketi/fstab
       case $lvcount in
         0) 
-        logs "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
-        if [ "${softfix^^}" = "YES" ]; then 
-          backup_brick 
+        logs "Mount point $brick don't related with any LV. We can just delete it from Gluster container"
+        if [ "${fixProblems^^}" = "YES" ]; then 
+          backup_brick
           remove_brick
         fi
         ;;
         #if we find one LV, we need do backup and remove brick, then remove LV
         1)
-        logs "Brick $brick RELATED with ONE LV. We need to delete LV as well"
+        logs "Mount point $brick RELATED with ONE LV. We need to delete LV as well"
         #Get files from the brick
         inspect_brick
-        if [ "${hardfix^^}" = "YES" ]; then
+        if [ "${fixProblems^^}" = "YES" ]; then
           backup_brick
           search_and_delete_lost_lv
         fi
@@ -187,11 +176,16 @@ for i in $gluster_pods; do
   #Search brick LVs which don't related with any gluster Volume
   logs "............ Check bricks lvs ..................."
   logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
-  for brick_lv in $bricks_lv; do
-    count=$(echo $gi | grep $brick_lv -c)
+
+  #Get bricks logical volumes
+  kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/bricks_lv
+  bricks_lv=$(sed -e "s/\r//g" /tmp/bricks_lv)
+
+  for brick in $bricks_lv; do
+    count=$(echo $gi | grep $brick -c)
     if [ $count -eq 0 ]; then
       logs $brick
-      if [ "${hardfix^^}" = "YES" ]; then
+      if [ "${fixProblems^^}" = "YES" ]; then
         inspect_brick
         search_and_delete_lost_lv
       fi
