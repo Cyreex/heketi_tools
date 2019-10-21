@@ -14,7 +14,8 @@
 softfix="NO"
 hardfix="NO"
 
-logFileName="/tmp/SearchErrors_$(date +%s).txt"
+timestamp=$(date +%s)
+logFileName="/tmp/SearchErrors_$timestamp.txt"
 
 logs() { 
   echo $1 >> $logFileName
@@ -75,8 +76,8 @@ done
 #####################################################################
 
 backup_brick() {
-  logs "Copy brick $brick to $backup_folder on host"
-  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_folder
+  logs "Copy brick $brick to $backup_dir on host"
+  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_dir
 }
 
 remove_brick() {
@@ -114,7 +115,7 @@ for i in $gluster_pods; do
       exit 1 
     fi
 
-    backup_dir="/tmp/backup_$i_$(date +%s)"
+    backup_dir="/tmp/backup_$i_$timestamp"
     mkdir $backup_dir
     kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
   fi
