@@ -19,13 +19,15 @@ logFileName="/tmp/SearchErrors_$timestamp.txt"
 
 logs() { 
   echo $1 >> $logFileName
-  echo $1
+  GREEN='\033[0;32m'
+  NORMAL='\033[0m'
+  echo -en "${GREEN} $1 ${NORMAL} \n"
 }
 
-read -p "Can I make Soft Fix? yes/NO:" softfix
+read -p "Can I make Soft Fix? yes/NO: " softfix
 if [ "${softfix^^}" = "YES" ]; then
   logs "We'll delete folders for noexists bricks"
-  read -p "Can we do Hard Fix? Are you sure? yes/NO" hardfix
+  read -p "Can we do Hard Fix? Are you sure? yes/NO " hardfix
 else
   logs "Soft fix is disabled"
 fi
@@ -88,15 +90,22 @@ remove_brick() {
 }
 
 search_and_delete_lost_lv() {  
-  sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N" sure
+  sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N " sure
   if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
-    kubectl exec -it -n glusterfs $i -- umount /var/lib/heketi/mounts/$vol_name/$brick
+    kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick
     kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
     remove_brick
   else
     logs "Oh, dude..."
   fi
+}
+
+inspect_brick() {
+  logs "Try to inspect the brick:"
+  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount -f /mnt/tmp\""
+  kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick \
+    /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount -f /mnt/tmp"
 }
 
 logs "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
@@ -107,7 +116,7 @@ for i in $gluster_pods; do
   #Create the backup of fstab
   if [ "${softfix^^}" = "YES" ]; then
     pandora="NO"
-    read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO" pandora
+    read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO " pandora
     
     if [ "${pandora^^}" = "YES" ]; then 
       logs "LET'S ROCK!"
@@ -131,6 +140,9 @@ for i in $gluster_pods; do
   #Get bricks registered in gluster on this container
   kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick
   bricks=$(sed -e "s/\r//g" /tmp/brick)
+  #Get bricks logical volumes
+  kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/brick_lv
+  bricks_lv=$(sed -e "s/\r//g" /tmp/brick_lv)
   #Find lost bricks and fix these
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
@@ -149,11 +161,8 @@ for i in $gluster_pods; do
         #if we find one LV, we need do backup and remove brick, then remove LV
         1)
         logs "Brick $brick RELATED with ONE LV. We need to delete LV as well"
-         #Get files from the brick
-        logs "Try to inspect the brick:"
-        logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount /mnt/tmp\""
-        kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount /mnt/tmp"
-        
+        #Get files from the brick
+        inspect_brick
         if [ "${hardfix^^}" = "YES" ]; then
           backup_brick
           search_and_delete_lost_lv
@@ -164,6 +173,19 @@ for i in $gluster_pods; do
         logs "ERROR: Something went wrong with brick $brick - lvcount=$lvcount"
         ;;
       esac
+    fi
+  done
+
+  #Search brick LVs which don't related with any gluster Volume
+  logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
+  for brick_lv in $bricks_lv; do
+    count=$(echo $gi | grep $brick_lv -c)
+    if [ $count -eq 0 ]; then
+      logs $brick
+      if [ "${hardfix^^}" = "YES" ]; then
+        inspect_brick
+        search_and_delete_lost_lv
+      fi
     fi
   done
 done
