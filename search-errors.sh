@@ -38,29 +38,45 @@ gv=$(sed -e "s/\r//g" /tmp/gv)   #removing ^M from the end of the lines, if it e
 kubectl exec -it -n glusterfs glusterfs-heketi-0 -- heketi-cli volume list | awk -F":" '{print $4}' > /tmp/hv
 hv=$(sed -e "s/\r//g" /tmp/hv)
 
-logs "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
+#Get list of volumes created by PV
+kubectl get pv -o jsonpath='{.items[*].spec.glusterfs.path}' > /tmp/pvs
+pvs=$(sed -e "s/\r//g" /tmp/pvs)
+
 #You can delete these volumes from heketi manually:
+logMarker=0
 for i in $hv; do  
-  count=$(echo $gv | grep $i -c) 
-  if [ $count -eq 0 ]; then 
+  count=$(echo $gv | grep $i -c)
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+    logs "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
+    logMarker=1
+  fi
+  if [ $count -eq 0 ]; then
     logs $i
   fi
 done
 
-logs "These volumes we have in the Gluster but don't have in the Heketi (lost control):" 
+logMarker=0
 for i in $gv; do 
   count=$(echo $hv | grep $i -c)
-    if [ $count -eq 0 ]; then 
-      logs $i
-    fi
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+    logs "These volumes we have in the Gluster but don't have in the Heketi (lost control):"
+    logMarker=1
+  fi
+  if [ $count -eq 0 ]; then
+    logs $i
+  fi
 done
 
-logs "These PV doesn't work, because volumes are absent in the Gluster:"
-for i in $(kubectl get pv -o yaml | grep vol_ | awk '{print $2}'); do 
+logMarker=0
+for i in $pvs; do
   count=$(echo $gv | grep $i -c)
-    if [ $count -eq 0 ]; then 
-      logs $i 
-    fi 
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+    logs "These PV doesn't work, because volumes are absent in the Gluster:"
+    logMarker=1
+  fi
+  if [ $count -eq 0 ]; then 
+    logs $i
+  fi 
 done
 
 ######################## PAIN ########################################
@@ -107,8 +123,6 @@ inspect_brick() {
     /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount -f /mnt/tmp"
 }
 
-logs "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
-
 gluster_pods=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[*].metadata.name}')
 for i in $gluster_pods; do
 
@@ -141,8 +155,16 @@ for i in $gluster_pods; do
   bricks=$(sed -e "s/\r//g" /tmp/brick)
   #Find lost bricks and fix these
   logs "............ Check bricks mount paths ..................."
+
+  logMarker=0
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
+
+    if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+      logs "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
+      logMarker=1
+    fi
+  
     if [ $count -eq 0 ]; then 
       logs $brick
       lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep $brick -c)   
@@ -172,17 +194,23 @@ for i in $gluster_pods; do
       esac
     fi
   done
-
+  
   #Search brick LVs which don't related with any gluster Volume
   logs "............ Check bricks lvs ..................."
-  logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
+  logMarker=0
 
   #Get bricks logical volumes
   kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/bricks_lv
   bricks_lv=$(sed -e "s/\r//g" /tmp/bricks_lv)
-
+  
   for brick in $bricks_lv; do
     count=$(echo $gi | grep $brick -c)
+
+    if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+      logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
+      logMarker=1
+    fi
+
     if [ $count -eq 0 ]; then
       logs $brick
       if [ "${fixProblems^^}" = "YES" ]; then
@@ -191,4 +219,17 @@ for i in $gluster_pods; do
       fi
     fi
   done
+done
+
+logs "............. Check that volume using by PV ......................"
+logMarker=0
+for i in $(echo $gv | grep vol_); do
+  count=$(echo $pvs | | grep $i -c)
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+    logs "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
+    logMarker=1
+  fi
+  if [ $count -eq 0 ]; then 
+    logs $i
+  fi 
 done
