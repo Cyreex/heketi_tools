@@ -77,7 +77,8 @@ done
 
 backup_brick() {
   logs "Copy brick $brick to $backup_dir on host"
-  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick /tmp/$backup_dir
+  mkdir -p $backup_dir/$brick
+  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick $backup_dir/$brick
 }
 
 remove_brick() {
