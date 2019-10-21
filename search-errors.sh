@@ -87,6 +87,11 @@ remove_brick() {
 
 search_and_delete_lost_lv() {
   backup_brick
+  #Get files from the brick
+  logs "Try to inspect the brick:"
+  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount /mnt/tmp\""
+  kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount /mnt/tmp"
+  
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N" sure
   if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
