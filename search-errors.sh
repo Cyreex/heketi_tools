@@ -88,7 +88,7 @@ remove_brick() {
 search_and_delete_lost_lv() {
   backup_brick
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N" sure
-  if [ "${sure^^}" = "Y"]; then
+  if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
     kubectl exec -it -n glusterfs $i -- umount /var/lib/heketi/mounts/$vol_name/$brick
     kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
@@ -104,7 +104,7 @@ gluster_pods=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath
 for i in $gluster_pods; do
 
   #Create the backup of fstab
-  if [ "${softfix^^}" = "YES"]; then
+  if [ "${softfix^^}" = "YES" ]; then
     pandora="NO"
     read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO" pandora
     
