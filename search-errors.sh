@@ -85,13 +85,7 @@ remove_brick() {
   kubectl exec -it -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
 
-search_and_delete_lost_lv() {
-  backup_brick
-  #Get files from the brick
-  logs "Try to inspect the brick:"
-  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount /mnt/tmp\""
-  kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount /mnt/tmp"
-  
+search_and_delete_lost_lv() {  
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N" sure
   if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
@@ -145,12 +139,23 @@ for i in $gluster_pods; do
       case $lvcount in
         0) 
         logs "Brick $brick don't don't related with any LV. We can just delete it from Gluster container"
-        if [ "${softfix^^}" = "YES" ]; then backup_brick; remove_brick; fi
+        if [ "${softfix^^}" = "YES" ]; then 
+          backup_brick 
+          remove_brick
+        fi
         ;;
         #if we find one LV, we need do backup and remove brick, then remove LV
         1)
         logs "Brick $brick RELATED with ONE LV. We need to delete LV as well"
-        if [ "${hardfix^^}" = "YES" ]; then search_and_delete_lost_lv; fi
+         #Get files from the brick
+        logs "Try to inspect the brick:"
+        logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount /mnt/tmp\""
+        kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount /mnt/tmp"
+        
+        if [ "${hardfix^^}" = "YES" ]; then
+          backup_brick
+          search_and_delete_lost_lv
+        fi
         ;;
         #If we found more than one volume - this is so strange... Better check it manually
         *)
