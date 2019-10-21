@@ -77,6 +77,9 @@ done
 #This is really problem that we are need to fix ASAP. 
 #####################################################################
 
+echo ..................................................
+echo ..................................................
+
 backup_brick() {
   logs "Copy brick $brick to $backup_dir on host"
   mkdir -p $backup_dir/$brick
@@ -144,6 +147,7 @@ for i in $gluster_pods; do
   kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/brick_lv
   bricks_lv=$(sed -e "s/\r//g" /tmp/brick_lv)
   #Find lost bricks and fix these
+  logs "............ Check bricks mount paths ..................."
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
     if [ $count -eq 0 ]; then 
@@ -177,6 +181,7 @@ for i in $gluster_pods; do
   done
 
   #Search brick LVs which don't related with any gluster Volume
+  logs "............ Check bricks lvs ..................."
   logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
   for brick_lv in $bricks_lv; do
     count=$(echo $gi | grep $brick_lv -c)
