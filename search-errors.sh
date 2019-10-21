@@ -7,9 +7,9 @@
 #
 #                   https://help.tpondemand.net/fix-heketi-lost-volumes/
 #
-#fixProblems YES - make some soft fix:
+#fixProblems YES - fix problems:
 #  - delete folders related with noexists bricks on glusterfs
-#  - lost LV will be deleted!
+#  - delete lost LV
 
 fixProblems="NO"
 
@@ -88,7 +88,7 @@ search_and_delete_lost_lv() {
   YELLOW='\033[0;33m'
   NORMAL='\033[0m'
   echo -e ${YELLOW}
-  sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N " sure
+  sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N: " sure
   if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
     kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick
@@ -115,7 +115,7 @@ for i in $gluster_pods; do
   #Create the backup of fstab
   if [ "${fixProblems^^}" = "YES" ]; then
     pandora="NO"
-    read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO " pandora
+    read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO: " pandora
     
     if [ "${pandora^^}" = "YES" ]; then 
       logs "LET'S ROCK!"
