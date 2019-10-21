@@ -92,7 +92,10 @@ remove_brick() {
   kubectl exec -it -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
 
-search_and_delete_lost_lv() {  
+search_and_delete_lost_lv() {
+  YELLOW='\033[0;33m'
+  NORMAL='\033[0m'
+  echo -e ${YELLOW}
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N " sure
   if [ "${sure^^}" = "Y" ]; then
     logs "LV will be deleted!"
@@ -102,6 +105,7 @@ search_and_delete_lost_lv() {
   else
     logs "Oh, dude..."
   fi
+  echo -e ${NORMAL}
 }
 
 inspect_brick() {
