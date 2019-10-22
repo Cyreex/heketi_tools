@@ -22,10 +22,11 @@ logs() {
 
   case $2 in
   red) 
-    COLOR="\033[31m"
+    COLOR='\033[31m'
   ;;
   yellow)
-    COLOR="\033[33m"
+    COLOR='\033[33m'
+  ;;
   *)
     COLOR='\033[0;32m'
   ;;
@@ -129,15 +130,15 @@ inspect_brick() {
 }
 
 delete_gluster_volume() {
-  RED="\033[31m"
-  NORMAL="\033[0m"
+  RED='\033[31m'
+  NORMAL='\033[0m'
   echo -e ${RED}
   sure="n"; read -p "Volume $volume will be deleted. Are you sure? y/N: " sure
   echo -e ${NORMAL}
   if [ ${sure^^} = "Y" ]; then
     kubectl exec -it -n glusterfs $glusterPodName volume stop $volume force
     kubectl exec -it -n glusterfs $glusterPodName volume delete $volume
-    logs "After deleting the Gluster volume you must remove the bricks in the following steps"
+    logs "After deleting the Gluster volume you must remove the bricks in the following steps" yellow
   else
     logs "You skip deleting the volume"
   fi
@@ -163,8 +164,9 @@ for volume in $gv; do
     logs "mount.glusterfs localhost:/$volume /mnt/$volume"
     mkdir -p "/mnt/$volume"
     mount.glusterfs localhost:/$volume /mnt/$volume
-    ls /mnt/$volume
-    read -p "Volume $volume is mounted to /mnt/$volume. Inspect data and press any key to continue. Data will NOT be deleted!"
+    ls -la /mnt/$volume
+    logs "Volume $volume is mounted to /mnt/$volume on localhost. You can check it out." yellow
+    read -p "Press any key to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
     if [ "${fixProblems^^}" = "YES" ]; then
