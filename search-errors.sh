@@ -64,7 +64,7 @@ for i in $hv; do
     logMarker=1
   fi
   if [ $count -eq 0 ]; then
-    logs $i
+    logs $i yellow
   fi
   if [ $count -eq 0 ] && [ "${fixProblems^^}" = "YES" ]; then
     read -p "Heketi volume $i will be deleted. To continue press 'Enter'. "
@@ -94,7 +94,7 @@ for i in $pvs; do
     logMarker=1
   fi
   if [ $count -eq 0 ]; then 
-    logs $i
+    logs $i yellow
   fi 
 done
 
@@ -124,7 +124,7 @@ search_and_delete_lost_lv() {
     kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/$tp_name
     remove_brick_mount_points
   else
-    logs "You skip deleting the brick" yellow
+    logs "You skip deleting the brick"
   fi
   echo -e ${NORMAL}
 }
@@ -145,7 +145,7 @@ delete_gluster_volume() {
   if [ "${sure^^}" = "Y" ]; then
     kubectl exec -it -n glusterfs $glusterPodName gluster volume stop $volume force
     kubectl exec -it -n glusterfs $glusterPodName gluster volume delete $volume
-    logs "After deleting the Gluster volume you must remove the bricks in the following steps" yellow
+    logs "After deleting the Gluster volume you must remove the bricks in the following steps" red
   else
     logs "You skip deleting the volume"
   fi
@@ -166,7 +166,7 @@ for volume in $gv; do
     logMarker=1
   fi
   if [ $count -eq 0 ] && [[ $volume = vol_* ]]; then 
-    logs $volume
+    logs $volume yellow
     logs "Try to mount this volume and inspect:"
     logs "mount.glusterfs localhost:/$volume /mnt/$volume"
     mkdir -p "/mnt/$volume"
@@ -236,7 +236,7 @@ for i in $gluster_pods; do
     fi
   
     if [ $count -eq 0 ]; then 
-      logs $brick
+      logs $brick yellow
       lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep $brick -c)   
       #if we didn't find LV with the name eq brick name, we can just delete folder and delete mount point in /var/lib/heketi/fstab
       case $lvcount in
@@ -282,9 +282,9 @@ for i in $gluster_pods; do
     fi
 
     if [ $count -eq 0 ]; then
-      logs $brick
+      logs $brick yellow
+      inspect_brick
       if [ "${fixProblems^^}" = "YES" ]; then
-        inspect_brick
         search_and_delete_lost_lv
       fi
     fi
