@@ -100,8 +100,8 @@ backup_brick() {
   kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick $backup_dir/$brick
 }
 
-remove_brick() {
-  logs "Remove brick $brick"
+remove_brick_mount_points() {
+  logs "Remove mount points for brick $brick"
   kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
   kubectl exec -it -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
@@ -112,10 +112,11 @@ search_and_delete_lost_lv() {
   echo -e ${YELLOW}
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N: " sure
   if [ "${sure^^}" = "Y" ]; then
-    logs "LV will be deleted!" red
-    kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick
-    kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
-    remove_brick
+    tp_name=$(kubectl exec -it -n glusterfs $i lvs | grep $brick | awk '{print $5}')
+    logs "LV $tp_name will be deleted!" red
+    kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick 
+    kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/$tp_name
+    remove_brick_mount_points
   else
     logs "You skip deleting the brick" yellow
   fi
@@ -135,9 +136,9 @@ delete_gluster_volume() {
   echo -e ${RED}
   sure="n"; read -p "Volume $volume will be deleted. Are you sure? y/N: " sure
   echo -e ${NORMAL}
-  if [ ${sure^^} = "Y" ]; then
-    kubectl exec -it -n glusterfs $glusterPodName volume stop $volume force
-    kubectl exec -it -n glusterfs $glusterPodName volume delete $volume
+  if [ "${sure^^}" = "Y" ]; then
+    kubectl exec -it -n glusterfs $glusterPodName gluster volume stop $volume force
+    kubectl exec -it -n glusterfs $glusterPodName gluster volume delete $volume
     logs "After deleting the Gluster volume you must remove the bricks in the following steps" yellow
   else
     logs "You skip deleting the volume"
@@ -237,7 +238,7 @@ for i in $gluster_pods; do
         logs "Mount point $brick don't related with any LV. We can just delete it from Gluster container"
         if [ "${fixProblems^^}" = "YES" ]; then 
           backup_brick
-          remove_brick
+          remove_brick_mount_points
         fi
         ;;
         #if we find one LV, we need do backup and remove brick, then remove LV
