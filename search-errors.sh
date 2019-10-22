@@ -167,14 +167,14 @@ for volume in $gv; do
     logs "Volume $volume is mounted to /mnt/$volume on localhost. You can check it out."
     logs "$(ls -la /mnt/$volume)" yellow
     echo "......... Volume disk usage ............."
-    logs "$(df -ha | grep \"\/mnt\/$volume\")" yellow
+    logs "$(df -ha | grep /mnt/$volume)" yellow
     read -p "Press any key to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
     if [ "${fixProblems^^}" = "YES" ]; then
       delete_gluster_volume
     fi
-    
+
   fi
 done
 
