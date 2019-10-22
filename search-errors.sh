@@ -164,14 +164,17 @@ for volume in $gv; do
     logs "mount.glusterfs localhost:/$volume /mnt/$volume"
     mkdir -p "/mnt/$volume"
     mount.glusterfs localhost:/$volume /mnt/$volume
-    ls -la /mnt/$volume
-    logs "Volume $volume is mounted to /mnt/$volume on localhost. You can check it out." yellow
+    logs "Volume $volume is mounted to /mnt/$volume on localhost. You can check it out."
+    logs "$(ls -la /mnt/$volume)" yellow
+    echo "......... Volume disk usage ............."
+    logs "$(df -ha | grep \"\/mnt\/$volume\")" yellow
     read -p "Press any key to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
     if [ "${fixProblems^^}" = "YES" ]; then
       delete_gluster_volume
     fi
+    
   fi
 done
 
@@ -191,11 +194,11 @@ for i in $gluster_pods; do
     pandora="NO"
     read -p "Are you sure you want open the Pandora Box for the POD $i? This is the last chance to stop it! yes/NO: " pandora
     
-    if [ "${pandora^^}" = "YES" ]; then 
+    if [ "${pandora^^}" = "YES" ]; then
       logs "LET'S ROCK!"
-    else 
+    else
       logs "Good choise, man!"
-      exit 1 
+      exit 1
     fi
 
     backup_dir="/tmp/backup_$i_$timestamp"
