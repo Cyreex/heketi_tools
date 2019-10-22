@@ -65,6 +65,12 @@ for i in $hv; do
   fi
   if [ $count -eq 0 ]; then
     logs $i
+    heketi-cli volume  list | grep vol_6f7901b74b7464ca317b838c566addc7 | awk '{print $1}' | cut -d":" -f2
+  fi
+  if [ $count -eq 0 ] && [ "${fixProblems^^}" = "YES" ]; then
+    read -p "Heketi volume $i will be deleted. To continue press 'Enter'. "
+    heketi_volume_id=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
+    kubectl exec -it -n glusterfs glusterfs-heketi-0 heketi-cli volume delete $heketi_volume_id
   fi
 done
 
@@ -80,6 +86,7 @@ for i in $gv; do
   fi
 done
 
+#Looks like these PVs were created with errors
 logMarker=0
 for i in $pvs; do
   count=$(echo $gv | grep $i -c)
