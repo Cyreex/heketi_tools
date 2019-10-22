@@ -18,9 +18,20 @@ logFileName="/tmp/SearchErrors_$timestamp.txt"
 
 logs() { 
   echo $1 >> $logFileName
-  GREEN='\033[0;32m'
   NORMAL='\033[0m'
-  echo -en "${GREEN} $1 ${NORMAL} \n"
+
+  case $2 in
+  red) 
+    COLOR="\033[31m"
+  ;;
+  yellow)
+    COLOR="\033[33m"
+  *)
+    COLOR='\033[0;32m'
+  ;;
+  esac
+
+  echo -en "${COLOR} $1 ${NORMAL} \n"
 }
 
 read -p "Can I Fix problems? yes/NO: " fixProblems
@@ -31,7 +42,8 @@ else
 fi
 
 #get all gluster volumes
-kubectl exec -it -n glusterfs $(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[0].metadata.name}') gluster v list > /tmp/gv
+glusterPodName=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -it -n glusterfs $glusterPodName gluster v list > /tmp/gv
 gv=$(sed -e "s/\r//g" /tmp/gv)   #removing ^M from the end of the lines, if it exists there
 
 #Get list of heketi volumes
@@ -79,14 +91,7 @@ for i in $pvs; do
   fi 
 done
 
-######################## PAIN ########################################
-#Our primary problem - we don't use LV, but LV aren't deleted. 
-#We can have not enough free space in the Gluster volumes to creating a new volume or expand another one.
-#This is really problem that we are need to fix ASAP. 
-#####################################################################
-
-echo ..................................................
-echo ..................................................
+#################### Functions for investigating and fixing problems ######################
 
 backup_brick() {
   logs "Copy brick $brick to $backup_dir on host"
@@ -106,22 +111,75 @@ search_and_delete_lost_lv() {
   echo -e ${YELLOW}
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N: " sure
   if [ "${sure^^}" = "Y" ]; then
-    logs "LV will be deleted!"
+    logs "LV will be deleted!" red
     kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick
     kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/tp_$(awk -F"_" '{print $2}' <<< $brick)
     remove_brick
   else
-    logs "Oh, dude..."
+    logs "You skip deleting the brick" yellow
   fi
   echo -e ${NORMAL}
 }
 
 inspect_brick() {
   logs "Try to inspect the brick:"
-  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount -f /mnt/tmp\""
+  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount -f /mnt/tmp\"" yellow
   kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick \
     /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount -f /mnt/tmp"
 }
+
+delete_gluster_volume() {
+  RED="\033[31m"
+  NORMAL="\033[0m"
+  echo -e ${RED}
+  sure="n"; read -p "Volume $volume will be deleted. Are you sure? y/N: " sure
+  echo -e ${NORMAL}
+  if [ ${sure^^} = "Y" ]; then
+    kubectl exec -it -n glusterfs $glusterPodName volume stop $volume force
+    kubectl exec -it -n glusterfs $glusterPodName volume delete $volume
+    logs "After deleting the Gluster volume you must remove the bricks in the following steps"
+  else
+    logs "You skip deleting the volume"
+  fi
+}
+
+######################## PAIN 00 ####################################################
+# Sometimes we have Gluster Volumes that we don't use, but they take us some diskspace
+#####################################################################################
+
+echo ..................................................
+
+logs "............. Check that volume using by PV ......................"
+logMarker=0
+for volume in $gv; do
+  count=$(echo $pvs | grep $volume -c)
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ] && [[ $volume = vol_* ]]; then
+    logs "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
+    logMarker=1
+  fi
+  if [ $count -eq 0 ] && [[ $volume = vol_* ]]; then 
+    logs $volume
+    logs "Try to mount this volume and inspect:"
+    logs "mount.glusterfs localhost:/$volume /mnt/$volume"
+    mkdir -p "/mnt/$volume"
+    mount.glusterfs localhost:/$volume /mnt/$volume
+    ls /mnt/$volume
+    read -p "Volume $volume is mounted to /mnt/$volume. Inspect data and press any key to continue. Data will NOT be deleted!"
+    umount /mnt/$volume && rm -r /mnt/$volume
+
+    if [ "${fixProblems^^}" = "YES" ]; then
+      delete_gluster_volume
+    fi
+  fi
+done
+
+######################## PAIN 01 #####################################
+#Our primary problem - we don't use LV, but LV aren't deleted. 
+#We can have not enough free space in the Gluster volumes to creating a new volume or expand another one.
+#This is really problem that we are need to fix ASAP. 
+######################################################################
+
+echo ..................................................
 
 gluster_pods=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[*].metadata.name}')
 for i in $gluster_pods; do
@@ -220,18 +278,3 @@ for i in $gluster_pods; do
     fi
   done
 done
-
-logs "............. Check that volume using by PV ......................"
-logMarker=0
-for i in $(echo $gv | grep vol_); do
-  count=$(echo $pvs | | grep $i -c)
-  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-    logs "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
-    logMarker=1
-  fi
-  if [ $count -eq 0 ]; then 
-    logs $i
-  fi 
-done
-
-#test
