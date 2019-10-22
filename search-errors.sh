@@ -48,7 +48,7 @@ kubectl exec -it -n glusterfs $glusterPodName gluster v list > /tmp/gv
 gv=$(sed -e "s/\r//g" /tmp/gv)   #removing ^M from the end of the lines, if it exists there
 
 #Get list of heketi volumes
-kubectl exec -it -n glusterfs glusterfs-heketi-0 -- heketi-cli volume list | awk -F":" '{print $4}' > /tmp/hv
+kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi -- heketi-cli volume list | awk -F":" '{print $4}' > /tmp/hv
 hv=$(sed -e "s/\r//g" /tmp/hv)
 
 #Get list of volumes created by PV
@@ -65,12 +65,11 @@ for i in $hv; do
   fi
   if [ $count -eq 0 ]; then
     logs $i
-    heketi-cli volume  list | grep vol_6f7901b74b7464ca317b838c566addc7 | awk '{print $1}' | cut -d":" -f2
   fi
   if [ $count -eq 0 ] && [ "${fixProblems^^}" = "YES" ]; then
     read -p "Heketi volume $i will be deleted. To continue press 'Enter'. "
-    heketi_volume_id=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
-    kubectl exec -it -n glusterfs glusterfs-heketi-0 heketi-cli volume delete $heketi_volume_id
+    heketi_volume_id=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
+    kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume delete $heketi_volume_id
   fi
 done
 
@@ -82,7 +81,7 @@ for i in $gv; do
     logMarker=1
   fi
   if [ $count -eq 0 ]; then
-    logs $i
+    logs $i red
   fi
 done
 
@@ -176,7 +175,7 @@ for volume in $gv; do
     logs "$(ls -la /mnt/$volume)" yellow
     echo "......... Volume disk usage ............."
     logs "$(df -ha | grep /mnt/$volume)" yellow
-    read -p "Press any key to continue..."
+    read -p "Press 'Enter' to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
     if [ "${fixProblems^^}" = "YES" ]; then
