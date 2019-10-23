@@ -101,9 +101,12 @@ done
 #################### Functions for investigating and fixing problems ######################
 
 backup_brick() {
-  logs "Copy brick $brick to $backup_dir on host"
-  mkdir -p $backup_dir/$brick
-  kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick $backup_dir/$brick
+  sure="n"; read -p "Do we need to create backup of this brick? y/N: " sure
+  if [ "${sure}^^" = "Y" ]; then
+    logs "Copy brick $brick to $backup_dir on host"
+    mkdir -p $backup_dir/$brick
+    kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick $backup_dir/$brick
+  fi
 }
 
 remove_brick_mount_points() {
