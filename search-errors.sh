@@ -134,9 +134,10 @@ search_and_delete_lost_lv() {
 
 inspect_brick() {
   logs "Try to inspect the brick:"
-  logs "kubectl exec -it -n glusterfs $i -- bash -c \"mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick /mnt/tmp && ls -la /mnt/tmp/brick && umount -f /mnt/tmp\"" yellow
+  logs "kubectl exec -it -n glusterfs $i -- bash" yellow
   kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick \
-    /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -ha | grep $brick && umount -f /mnt/tmp"
+    /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -h /mnt/tmp && umount -f /mnt/tmp"
+  kubectl exec -it -n glusterfs $i -- bash -c "umount -f /mnt/tmp"
 }
 
 delete_gluster_volume() {
@@ -177,7 +178,7 @@ for volume in $gv; do
     logs "Volume $volume is mounted to /mnt/$volume on localhost. You can check it out."
     logs "$(ls -la /mnt/$volume)" yellow
     echo "......... Volume disk usage ............."
-    logs "$(df -ha | grep /mnt/$volume)" yellow
+    logs "$(df -h /mnt/$volume)" yellow
     read -p "Press 'Enter' to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
@@ -216,7 +217,7 @@ for i in $gluster_pods; do
     kubectl cp -n glusterfs $i:var/lib/heketi/fstab $backup_dir
   fi
   #Show GlusterFS POD which we use in this step
-  kubectl get po -n glusterfs $i -o wide
+  kubectl get po -n glusterfs $i -o wide | tee $logFileName
   #Get information about ALL gluster volumes
   kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi
   gi=$(sed -e "s/\r//g" /tmp/gi)
