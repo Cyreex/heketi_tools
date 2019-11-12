@@ -59,8 +59,7 @@ envsubst < full.json > full-with-values.json
 jq '.volumeentries += input.volume' $input_json full-with-values.json > tempDB.json
 jq '.brickentries += input.bricks' tempDB.json full-with-values.json > tempDB.tmp && mv tempDB.tmp tempDB.json
 
-jq --arg volume_id $volume_id --arg cluster_id $cluster_id  '.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.js
-on > tempDB.tmp && mv tempDB.tmp tempDB.json
+jq --arg volume_id $volume_id --arg cluster_id $cluster_id  '.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.json > tempDB.tmp && mv tempDB.tmp tempDB.json
 
 deviceentries() {
   jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json > deviceentries.tmp
