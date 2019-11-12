@@ -10,7 +10,7 @@ input_json=db_before.json
 output_json=db_after.json
 template_json=template.json
 template_with_values_json=full-with-values.json
-set -e
+#set -e
 
 export volume_name=$1
 
@@ -80,15 +80,24 @@ echo "brick_id_3: $brick_id_3"
 envsubst <$template_json >$template_with_values_json
 
 #Add volume to Heketi DB (JSON)
-jq '.volumeentries += input.volume' $input_json $template_with_values_json >tempDB.json
-jq '.brickentries += input.bricks' tempDB.json $template_with_values_json >tempDB.tmp && mv tempDB.tmp tempDB.json
+jq -S '.volumeentries += input.volume' $input_json $template_with_values_json >tempDB.json
+jq -S '.brickentries += input.bricks' tempDB.json $template_with_values_json >tempDB.tmp && mv tempDB.tmp tempDB.json
 
-#Add a volume to the volumes list for the heketi cluster
-jq --arg volume_id $volume_id --arg cluster_id $cluster_id '.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.json >tempDB.tmp && mv tempDB.tmp tempDB.json
+#Get sorted volumes for clusterentries
+jq --arg volume_id $volume_id --arg cluster_id $cluster_id \
+'.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.json | jq '.clusterentries[].Info.volumes | sort' \
+> clusterentries.tmp
+#Add volumes to clusterentries
+jq '.clusterentries[].Info.volumes = input' tempDB.json clusterentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f clusterentries.tmp
 
 #Add bricks IDs to the bricks lists for the heketi devices
 deviceentries() {
-  jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json >deviceentries.tmp
+  jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json | jq ''>deviceentries.tmp
+  jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f deviceentries.tmp
+}
+
+deviceentries() {
+  jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json | jq ''>deviceentries.tmp
   jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f deviceentries.tmp
 }
 
