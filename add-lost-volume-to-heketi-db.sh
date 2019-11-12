@@ -5,11 +5,23 @@ if [[ ${1} != "vol_"*  ]]; then
   exit 0
 fi 
 
+#constans
+input_json=before.json
+template_json=full.json
+
 set -e
 
 export volume_name=$1
 
-input_json=before.json
+#Export heketi database to JSON
+kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
+"cd /var/lib/heketi/ && \
+rm -f $input_json && \
+cp heketi.db heketi-input.db && \
+heketi db export --dbfile=heketi-input.db --jsonfile=$input_json && \
+rm -f heketi-input.db"
+
+#Copy DB to the working folder
 kubectl cp -n glusterfs glusterfs-heketi-0:var/lib/heketi/$input_json ./
 
 export volume_id=$(cut -d_ -f2 <<< $volume_name)
@@ -53,7 +65,7 @@ done
 
 ###GLUE
 #replace variables in JSON template
-envsubst < full.json > full-with-values.json
+envsubst < $template_json > full-with-values.json
 
 #Add volume to Heketi DB (JSON)
 jq '.volumeentries += input.volume' $input_json full-with-values.json > tempDB.json
