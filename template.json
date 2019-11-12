@@ -1,0 +1,103 @@
+{
+    "volume": {
+        "$volume_id": {
+            "Info": {
+                "size": $volume_size,
+                "name": "vol_$volume_id",
+                "durability": {
+                    "type": "replicate",
+                    "replicate": {
+                        "replica": 3
+                    },
+                    "disperse": {}
+                },
+                "gid": $volume_gid,
+                "snapshot": {
+                    "enable": false,
+                    "factor": 1
+                },
+                "id": "$volume_id",
+                "cluster": "$cluster_id",
+                "mount": {
+                    "glusterfs": {
+                        "hosts": [ "$gluster_host_ip_1", "$gluster_host_ip_2", "$gluster_host_ip_3" ],
+                        "device": "$gluster_host_ip_1:vol_$volume_id",
+                        "options": {
+                            "backup-volfile-servers": "$gluster_host_ip_2,$gluster_host_ip_3"
+                        }
+                    }
+                },
+                "blockinfo": {}
+            },
+            "Bricks": [
+                "$brick_id_1",
+                "$brick_id_2",
+                "$brick_id_3"
+            ],
+            "GlusterVolumeOptions": [
+                "",
+                ""
+            ],
+            "Pending": {
+                "Id": ""
+            }
+        }
+    },
+
+    "bricks": {
+        "$brick_id_1": {
+            "Info": {
+                "id": "$brick_id_1",
+                "path": "$brick_path_1",
+                "device": "$brick_vg_id_1",
+                "node": "$host_id_for_brick_id_1",
+                "volume": "$volume_id",
+                "size": $volume_size_bytes
+            },
+            "TpSize": $volume_size_bytes,
+            "PoolMetadataSize": 12288,
+            "Pending": {
+                "Id": ""
+            },
+            "LvmThinPool": "tp_$brick_id_1",
+            "LvmLv": "",
+            "SubType": 1
+        },
+        "$brick_id_2": {
+            "Info": {
+                "id": "$brick_id_2",
+                "path": "$brick_path_2",
+                "device": "$brick_vg_id_2",
+                "node": "$host_id_for_brick_id_2",
+                "volume": "$volume_id",
+                "size": $volume_size_bytes
+            },
+            "TpSize": $volume_size_bytes,
+            "PoolMetadataSize": 12288,
+            "Pending": {
+                "Id": ""
+            },
+            "LvmThinPool": "tp_$brick_id_2",
+            "LvmLv": "",
+            "SubType": 1
+        },
+        "$brick_id_3": {
+            "Info": {
+                "id": "$brick_id_3",
+                "path": "$brick_path_3",
+                "device": "$brick_vg_id_3",
+                "node": "$host_id_for_brick_id_3",
+                "volume": "$volume_id",
+                "size": $volume_size_bytes
+            },
+            "TpSize": $volume_size_bytes,
+            "PoolMetadataSize": 12288,
+            "Pending": {
+                "Id": ""
+            },
+            "LvmThinPool": "tp_$brick_id_3",
+            "LvmLv": "",
+            "SubType": 1
+        }
+    }
+}
