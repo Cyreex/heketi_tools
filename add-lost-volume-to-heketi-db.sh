@@ -69,6 +69,12 @@ if [ "$matches" -ne 0 ]; then
   exit 0
 fi
 
+echo "DEBUG INFO:"
+echo "volume_id: $volume_id"
+echo "brick_id_1: $brick_id_1"
+echo "brick_id_2: $brick_id_2"
+echo "brick_id_3: $brick_id_3"
+
 ###GLUE
 #replace variables in JSON template
 envsubst <$template_json >$template_with_values_json
