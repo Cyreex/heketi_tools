@@ -97,7 +97,9 @@ deviceentries() {
 }
 
 deviceentries() {
-  jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json | jq ''>deviceentries.tmp
+  jq --arg host_id $2 '.deviceentries | .[$host_id].Bricks' tempDB.json | \
+  jq --arg brick_id $1 '.[. | length] += $brick_id | sort' > bricks.tmp
+  jq --arg host_id $2 '.deviceentries | .[$host_id].Bricks = input' tempDB.json bricks.tmp > deviceentries.tmp && rm -f bricks.tmp
   jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f deviceentries.tmp
 }
 
