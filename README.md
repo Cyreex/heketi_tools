@@ -1,7 +1,7 @@
 #Requirements
 1. Gluster and Heketi PODs in the namespace "gluster"
 2. We have 3 gluster POD
-3. All volumes has 3 replicas
+3. All volumes have 3 replicas
 
 #How to start use this scripts:
 
