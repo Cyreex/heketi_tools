@@ -71,9 +71,9 @@ fi
 
 echo "DEBUG INFO:"
 echo "volume_id: $volume_id"
-echo "brick_id_1: $brick_id_1"
-echo "brick_id_2: $brick_id_2"
-echo "brick_id_3: $brick_id_3"
+echo "brick_id_1: $brick_id_1; host_id: $brick_vg_id_1"
+echo "brick_id_2: $brick_id_2; host_id: $brick_vg_id_2"
+echo "brick_id_3: $brick_id_3; host_id: $brick_vg_id_3"
 
 ###GLUE
 #replace variables in JSON template
@@ -105,7 +105,7 @@ deviceentries() {
 
 deviceentries $brick_id_1 $brick_vg_id_1
 deviceentries $brick_id_2 $brick_vg_id_2
-deviceentries $brick_id_2 $brick_vg_id_3
+deviceentries $brick_id_3 $brick_vg_id_3
 
 #rename JSON
 mv tempDB.json $output_json
@@ -114,7 +114,8 @@ mv tempDB.json $output_json
 kubectl cp -n glusterfs ./$output_json glusterfs-heketi-0:var/lib/heketi/
 
 #create db from JSON
-kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db import --jsonfile=/var/lib/heketi/output_json --dbfile=/var/lib/heketi/newdb.dp
+kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- \
+heketi db import --jsonfile=/var/lib/heketi/output_json --dbfile=/var/lib/heketi/newdb.db
 
 #Heketi DB consistency check
 kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-check --dbfile=/var/lib/heketi/newdb.db 
@@ -122,11 +123,11 @@ kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-
 #Make sure that we need to apply a new DB
 #read ""
 
-timestamp=$(date)
+#timestamp=$(date)
 #Change DB 
-kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
-"cp /var/lib/heketi/heketi.db /var/lib/heketi/heketi.db.$timestamp && \
-mv -f /var/lib/heketi/newdb.db /var/lib/heketi/heketi.db"
+#kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
+#"cp /var/lib/heketi/heketi.db /var/lib/heketi/heketi.db.$timestamp && \
+#mv -f /var/lib/heketi/newdb.db /var/lib/heketi/heketi.db"
 
 #Restart POD Heketi
-kubectl delete po -n glusterfs glusterfs-heketi-0
+#kubectl delete po -n glusterfs glusterfs-heketi-0
