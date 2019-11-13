@@ -115,7 +115,7 @@ kubectl cp -n glusterfs ./$output_json glusterfs-heketi-0:var/lib/heketi/
 
 #create db from JSON
 kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- \
-heketi db import --jsonfile=/var/lib/heketi/output_json --dbfile=/var/lib/heketi/newdb.db
+heketi db import --jsonfile=/var/lib/heketi/$output_json --dbfile=/var/lib/heketi/newdb.db
 
 #Heketi DB consistency check
 kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-check --dbfile=/var/lib/heketi/newdb.db 
