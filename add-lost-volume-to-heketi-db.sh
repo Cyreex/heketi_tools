@@ -129,5 +129,5 @@ if [ "${sure}^^" = "Y" ]; then
   mv -f /var/lib/heketi/newdb.db /var/lib/heketi/heketi.db"
   #Restart POD Heketi
   kubectl delete po -n glusterfs glusterfs-heketi-0
-}
+fi
 
