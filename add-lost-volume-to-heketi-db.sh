@@ -117,17 +117,17 @@ kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- \
 heketi db import --jsonfile=/var/lib/heketi/$output_json --dbfile=/var/lib/heketi/newdb.db
 
 #Heketi DB consistency check
-kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-check --dbfile=/var/lib/heketi/newdb.db 
+kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-check --dbfile=/var/lib/heketi/newdb.db  | \
+jq '.[].inconsistencies'
 
-#Make sure that we need to apply a new DB
-#read ""
-
-#timestamp=$(date)
-#Change DB 
-#kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
-#"cp /var/lib/heketi/heketi.db /var/lib/heketi/heketi.db.$timestamp && \
-#mv -f /var/lib/heketi/newdb.db /var/lib/heketi/heketi.db"
-
-#Restart POD Heketi
-#kubectl delete po -n glusterfs glusterfs-heketi-0
+sure="n"; read -p "Do you need to replace heketi DB on new version? y/N: " sure
+if [ "${sure}^^" = "Y" ]; then
+  timestamp=$(date +%s)
+  #Replace DB 
+  kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
+  "cp /var/lib/heketi/heketi.db /var/lib/heketi/heketi.db.$timestamp && \
+  mv -f /var/lib/heketi/newdb.db /var/lib/heketi/heketi.db"
+  #Restart POD Heketi
+  kubectl delete po -n glusterfs glusterfs-heketi-0
+}
 
