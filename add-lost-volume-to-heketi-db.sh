@@ -79,28 +79,26 @@ echo "brick_id_3: $brick_id_3; host_id: $brick_vg_id_3"
 #replace variables in JSON template
 envsubst <$template_json >$template_with_values_json
 
+#Sort bricks
+jq '.volume[].Bricks = (.volume[].Bricks | sort)' $template_with_values_json >bricks.tmp && mv -f bricks.tmp $template_with_values_json
+
 #Add volume to Heketi DB (JSON)
 jq -S '.volumeentries += input.volume' $input_json $template_with_values_json >tempDB.json
-jq -S '.brickentries += input.bricks' tempDB.json $template_with_values_json >tempDB.tmp && mv tempDB.tmp tempDB.json
+jq -S '.brickentries += input.bricks' tempDB.json $template_with_values_json >tempDB.tmp && mv -f tempDB.tmp tempDB.json
 
 #Get sorted volumes for clusterentries
 jq --arg volume_id $volume_id --arg cluster_id $cluster_id \
-'.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.json | jq '.clusterentries[].Info.volumes | sort' \
-> clusterentries.tmp
+'.clusterentries[].Info.volumes[ .clusterentries[].Info.volumes | length ] +=  $volume_id' tempDB.json | \
+jq '.clusterentries[].Info.volumes | sort' >clusterentries.tmp
 #Add volumes to clusterentries
-jq '.clusterentries[].Info.volumes = input' tempDB.json clusterentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f clusterentries.tmp
+jq '.clusterentries[].Info.volumes = input' tempDB.json clusterentries.tmp >tempDB.tmp && mv -f tempDB.tmp tempDB.json && rm -f clusterentries.tmp
 
 #Add bricks IDs to the bricks lists for the heketi devices
-deviceentries() {
-  jq --arg brick_id $1 --arg host_id $2 '.deviceentries | .[$host_id].Bricks[ .[$host_id].Bricks | length ] += $brick_id' tempDB.json | jq ''>deviceentries.tmp
-  jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f deviceentries.tmp
-}
-
 deviceentries() {
   jq --arg host_id $2 '.deviceentries | .[$host_id].Bricks' tempDB.json | \
   jq --arg brick_id $1 '.[. | length] += $brick_id | sort' > bricks.tmp
   jq --arg host_id $2 '.deviceentries | .[$host_id].Bricks = input' tempDB.json bricks.tmp > deviceentries.tmp && rm -f bricks.tmp
-  jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv tempDB.tmp tempDB.json && rm -f deviceentries.tmp
+  jq ".deviceentries = input" tempDB.json deviceentries.tmp >tempDB.tmp && mv -f tempDB.tmp tempDB.json && rm -f deviceentries.tmp
 }
 
 deviceentries $brick_id_1 $brick_vg_id_1
@@ -113,6 +111,7 @@ mv tempDB.json $output_json
 #Upload JSON to heketi POD
 kubectl cp -n glusterfs ./$output_json glusterfs-heketi-0:var/lib/heketi/
 
+kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- rm -f /var/lib/heketi/newdb.db
 #create db from JSON
 kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- \
 heketi db import --jsonfile=/var/lib/heketi/$output_json --dbfile=/var/lib/heketi/newdb.db
