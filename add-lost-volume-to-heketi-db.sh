@@ -121,8 +121,9 @@ kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-
 jq '.[].inconsistencies'
 
 sure="n"; read -p "Do you need to replace heketi DB on new version? y/N: " sure
-if [ "${sure}^^" = "Y" ]; then
+if [ "${sure^^}" = "Y" ]; then
   timestamp=$(date +%s)
+  echo "DB backup name: heketi.db.$timestamp"
   #Replace DB 
   kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- bash -c \
   "cp /var/lib/heketi/heketi.db /var/lib/heketi/heketi.db.$timestamp && \
