@@ -130,3 +130,4 @@ kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi db consistency-
 
 #Restart POD Heketi
 #kubectl delete po -n glusterfs glusterfs-heketi-0
+
