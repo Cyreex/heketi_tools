@@ -102,7 +102,7 @@ done
 
 backup_brick() {
   sure="n"; read -p "Do we need to create backup of this brick? y/N: " sure
-  if [ "${sure}^^" = "Y" ]; then
+  if [ "${sure^^}" = "Y" ]; then
     logs "Copy brick $brick to $backup_dir on host"
     mkdir -p $backup_dir/$brick
     kubectl cp -n glusterfs $i:var/lib/heketi/mounts/$vol_name/$brick $backup_dir/$brick
