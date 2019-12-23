@@ -6,8 +6,8 @@
 #How to start use this scripts:
 
 ```
-git clone https://github.com/Cyreex/sh.git
-cd sh
+git clone https://github.com/Cyreex/heketi_tools.git
+cd heketi_tools
 chmod +x *.sh
 ```
 
