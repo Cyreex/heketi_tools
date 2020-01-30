@@ -136,8 +136,8 @@ delete_gluster_volume() {
   sure="n"; read -p "Volume $volume will be deleted. Are you sure? y/N: " sure
   echo -e ${NORMAL}
   if [ "${sure^^}" = "Y" ]; then
-    kubectl exec -n glusterfs $glusterPodName gluster volume stop $volume force
-    kubectl exec -n glusterfs $glusterPodName gluster volume delete $volume
+    kubectl exec -it -n glusterfs $glusterPodName gluster volume stop $volume force
+    kubectl exec -it -n glusterfs $glusterPodName gluster volume delete $volume
     logs "After deleting the Gluster volume you must remove the bricks in the following steps" red
   else
     logs "You skip deleting the volume"
