@@ -33,6 +33,14 @@ logs() {
   echo -en '\033[0m'
 }
 
+showCheckHeader() {
+  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
+    logs "$1"
+    logMarker=1
+    return $logMarker
+  fi
+}
+
 read -p "Can I Fix problems? yes/NO: " fixProblems
 if [ "${fixProblems^^}" = "YES" ]; then
   logs "We'll try to fix errors"
@@ -54,10 +62,8 @@ pvs=$(kubectl get pv -o jsonpath='{.items[*].spec.glusterfs.path}')
 logMarker=0
 for i in $hv; do  
   count=$(echo $gv | grep $i -c)
-  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-    logs "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
-    logMarker=1
-  fi
+  showCheckHeader "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
+
   if [ $count -eq 0 ]; then
     logs $i yellow
   fi
@@ -71,10 +77,8 @@ done
 logMarker=0
 for i in $gv; do 
   count=$(echo $hv | grep $i -c)
-  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-    logs "These volumes we have in the Gluster but don't have in the Heketi (lost control):"
-    logMarker=1
-  fi
+  showCheckHeader "These volumes we have in the Gluster but don't have in the Heketi (lost control):"
+  
   if [ $count -eq 0 ]; then
     logs $i red
   fi
@@ -84,10 +88,8 @@ done
 logMarker=0
 for i in $pvs; do
   count=$(echo $gv | grep $i -c)
-  if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-    logs "These PV doesn't work, because volumes are absent in the Gluster:"
-    logMarker=1
-  fi
+  showCheckHeader "These PV doesn't work, because volumes are absent in the Gluster:"
+
   if [ $count -eq 0 ]; then 
     logs $i yellow
   fi 
@@ -160,9 +162,8 @@ logs "............. Check that volume using by PV ......................"
 logMarker=0
 for volume in $gv; do
   count=$(echo $pvs | grep $volume -c)
-  if [ $count -eq 0 ] && [ $logMarker -eq 0 ] && [[ $volume = vol_* ]]; then
-    logs "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
-    logMarker=1
+  if [[ $volume = vol_* ]]; then
+    showCheckHeader "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
   fi
   if [ $count -eq 0 ] && [[ $volume = vol_* ]]; then 
     logs $volume yellow
@@ -225,11 +226,7 @@ for i in $gluster_pods; do
   logMarker=0
   for brick in $bricks; do 
     count=$(echo $gi | grep $brick -c)
-
-    if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-      logs "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
-      logMarker=1
-    fi
+    showCheckHeader "These BRICKS don't related with any VOLUMES (volumes maybe deleted):"
   
     if [ $count -eq 0 ]; then 
       logs $brick yellow
@@ -270,11 +267,7 @@ for i in $gluster_pods; do
   
   for brick in $bricks_lv; do
     count=$(echo $gi | grep $brick -c)
-
-    if [ $count -eq 0 ] && [ $logMarker -eq 0 ]; then
-      logs "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
-      logMarker=1
-    fi
+    showCheckHeader "These Logical Volumes (LV) don't related with any Gluster volumes (volumes maybe deleted):"
 
     if [ $count -eq 0 ]; then
       logs $brick yellow
