@@ -44,16 +44,13 @@ fi
 
 #get all gluster volumes
 glusterPodName=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[0].metadata.name}')
-kubectl exec -it -n glusterfs $glusterPodName gluster v list > /tmp/gv
-gv=$(sed -e "s/\r//g" /tmp/gv)   #removing ^M from the end of the lines, if it exists there
+gv=$(kubectl exec -it -n glusterfs $glusterPodName gluster v list)
 
 #Get list of heketi volumes
-kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi -- heketi-cli volume list | awk -F":" '{print $4}' > /tmp/hv
-hv=$(sed -e "s/\r//g" /tmp/hv)
+hv=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi -- heketi-cli volume list | awk -F":" '{print $4}')
 
 #Get list of volumes created by PV
-kubectl get pv -o jsonpath='{.items[*].spec.glusterfs.path}' > /tmp/pvs
-pvs=$(sed -e "s/\r//g" /tmp/pvs)
+pvs=$(kubectl get pv -o jsonpath='{.items[*].spec.glusterfs.path}')
 
 #You can delete these volumes from heketi manually:
 logMarker=0
@@ -68,8 +65,8 @@ for i in $hv; do
   fi
   if [ $count -eq 0 ] && [ "${fixProblems^^}" = "YES" ]; then
     read -p "Heketi volume $i will be deleted. To continue press 'Enter'. "
-    heketi_volume_id=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
-    kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume delete $heketi_volume_id
+    heketi_volume_id=$(kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
+    kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume delete $heketi_volume_id
   fi
 done
 
@@ -111,8 +108,8 @@ backup_brick() {
 
 remove_brick_mount_points() {
   logs "Remove mount points for brick $brick"
-  kubectl exec -it -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
-  kubectl exec -it -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
+  kubectl exec -n glusterfs $i -- rm -rf /var/lib/heketi/mounts/$vol_name/$brick
+  kubectl exec -n glusterfs $i -- sed -i.save "/${brick}/d" /var/lib/heketi/fstab
 }
 
 search_and_delete_lost_lv() {
@@ -123,8 +120,8 @@ search_and_delete_lost_lv() {
   if [ "${sure^^}" = "Y" ]; then
     tp_name=$(kubectl exec -it -n glusterfs $i lvs | grep $brick | awk '{print $5}')
     logs "LV $tp_name will be deleted!" red
-    kubectl exec -it -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick 
-    kubectl exec -it -n glusterfs $i -- lvremove -f $vol_name/$tp_name
+    kubectl exec -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick 
+    kubectl exec -n glusterfs $i -- lvremove -f $vol_name/$tp_name
     remove_brick_mount_points
   else
     logs "You skip deleting the brick"
@@ -134,10 +131,10 @@ search_and_delete_lost_lv() {
 
 inspect_brick() {
   logs "Try to inspect the brick:"
-  logs "kubectl exec -it -n glusterfs $i -- bash" yellow
-  kubectl exec -it -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick \
+  logs "kubectl exec -n glusterfs $i -- bash" yellow
+  kubectl exec -n glusterfs $i -- bash -c "mkdir -p /mnt/tmp && mount /dev/mapper/$vol_name-$brick \
     /mnt/tmp && ls -la /mnt/tmp/brick && echo ... df ... && df -h /mnt/tmp && umount -f /mnt/tmp"
-  kubectl exec -it -n glusterfs $i -- bash -c "umount -f /mnt/tmp"
+  kubectl exec -n glusterfs $i -- bash -c "umount -f /mnt/tmp"
 }
 
 delete_gluster_volume() {
@@ -147,8 +144,8 @@ delete_gluster_volume() {
   sure="n"; read -p "Volume $volume will be deleted. Are you sure? y/N: " sure
   echo -e ${NORMAL}
   if [ "${sure^^}" = "Y" ]; then
-    kubectl exec -it -n glusterfs $glusterPodName gluster volume stop $volume force
-    kubectl exec -it -n glusterfs $glusterPodName gluster volume delete $volume
+    kubectl exec -n glusterfs $glusterPodName gluster volume stop $volume force
+    kubectl exec -n glusterfs $glusterPodName gluster volume delete $volume
     logs "After deleting the Gluster volume you must remove the bricks in the following steps" red
   else
     logs "You skip deleting the volume"
@@ -219,14 +216,11 @@ for i in $gluster_pods; do
   #Show GlusterFS POD which we use in this step
   kubectl get po -n glusterfs $i -o wide | tee $logFileName
   #Get information about ALL gluster volumes
-  kubectl exec -it -n glusterfs $i gluster v info all > /tmp/gi
-  gi=$(sed -e "s/\r//g" /tmp/gi)
+  gi=$(kubectl exec -n glusterfs $i gluster v info all)
   #Get VG name that this GlusterFS container use
-  kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_ > /tmp/vol_name
-  vol_name=$(sed -e "s/\r//g" /tmp/vol_name)
+  vol_name=$(kubectl exec -n glusterfs $i -- ls /var/lib/heketi/mounts/ | grep vg_)
   #Get bricks registered in gluster on this container
-  kubectl exec -it -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name > /tmp/brick
-  bricks=$(sed -e "s/\r//g" /tmp/brick)
+  bricks=$(kubectl exec -n glusterfs $i -- ls /var/lib/heketi/mounts/$vol_name)
   #Find lost bricks and fix these
   logs "............ Check bricks mount paths ..................."
 
@@ -241,7 +235,7 @@ for i in $gluster_pods; do
   
     if [ $count -eq 0 ]; then 
       logs $brick yellow
-      lvcount=$(kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep $brick -c)   
+      lvcount=$(kubectl exec -n glusterfs $i -- lvdisplay | grep "LV Name" | grep $brick -c)   
       #if we didn't find LV with the name eq brick name, we can just delete folder and delete mount point in /var/lib/heketi/fstab
       case $lvcount in
         0) 
@@ -274,8 +268,7 @@ for i in $gluster_pods; do
   logMarker=0
 
   #Get bricks logical volumes
-  kubectl exec -it -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}' > /tmp/bricks_lv
-  bricks_lv=$(sed -e "s/\r//g" /tmp/bricks_lv)
+  bricks_lv=$(kubectl exec -n glusterfs $i -- lvdisplay | grep "LV Name" | grep "brick_" | awk '{print $3}')
   
   for brick in $bricks_lv; do
     count=$(echo $gi | grep $brick -c)
