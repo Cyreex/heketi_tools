@@ -17,22 +17,20 @@ timestamp=$(date +%s)
 logFileName="/tmp/SearchErrors_$timestamp.txt"
 
 logs() { 
-  echo $1 >> $logFileName
-  NORMAL='\033[0m'
-
   case $2 in
   red) 
-    COLOR='\033[31m'
+    echo -en '\033[31m'
   ;;
   yellow)
-    COLOR='\033[33m'
+    echo -en '\033[33m'
   ;;
   *)
-    COLOR='\033[0;32m'
+    echo -en '\033[0;32m'
   ;;
   esac
 
-  echo -en "${COLOR} $1 ${NORMAL} \n"
+  echo $1 | tee $logFileName
+  echo -en '\033[0m'
 }
 
 read -p "Can I Fix problems? yes/NO: " fixProblems
@@ -44,10 +42,10 @@ fi
 
 #get all gluster volumes
 glusterPodName=$(kubectl get po -n glusterfs -l=name=glusterfs-gluster -o jsonpath='{.items[0].metadata.name}')
-gv=$(kubectl exec -it -n glusterfs $glusterPodName gluster v list)
+gv=$(kubectl exec -n glusterfs $glusterPodName gluster v list)
 
 #Get list of heketi volumes
-hv=$(kubectl exec -it -n glusterfs glusterfs-heketi-0 -c heketi -- heketi-cli volume list | awk -F":" '{print $4}')
+hv=$(kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi -- heketi-cli volume list | awk -F":" '{print $4}')
 
 #Get list of volumes created by PV
 pvs=$(kubectl get pv -o jsonpath='{.items[*].spec.glusterfs.path}')
@@ -118,7 +116,7 @@ search_and_delete_lost_lv() {
   echo -e ${YELLOW}
   sure="n"; read -p "LV $brick will be deleted. Are you sure? y/N: " sure
   if [ "${sure^^}" = "Y" ]; then
-    tp_name=$(kubectl exec -it -n glusterfs $i lvs | grep $brick | awk '{print $5}')
+    tp_name=$(kubectl exec -n glusterfs $i lvs | grep $brick | awk '{print $5}')
     logs "LV $tp_name will be deleted!" red
     kubectl exec -n glusterfs $i -- umount -f /var/lib/heketi/mounts/$vol_name/$brick 
     kubectl exec -n glusterfs $i -- lvremove -f $vol_name/$tp_name
