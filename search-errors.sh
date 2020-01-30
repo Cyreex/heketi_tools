@@ -63,10 +63,8 @@ logMarker=0
 for i in $hv; do  
   count=$(echo $gv | grep $i -c)
   showCheckHeader "These volumes we have in the Heketi but don't have in the Gluster (lost data):"
-
-  if [ $count -eq 0 ]; then
-    logs $i yellow
-  fi
+  [ $count -eq 0 ] && logs $i yellow
+  
   if [ $count -eq 0 ] && [ "${fixProblems^^}" = "YES" ]; then
     read -p "Heketi volume $i will be deleted. To continue press 'Enter'. "
     heketi_volume_id=$(kubectl exec -n glusterfs glusterfs-heketi-0 -c heketi heketi-cli volume list | grep $i | awk '{print $1}' | cut -d":" -f2)
@@ -78,10 +76,7 @@ logMarker=0
 for i in $gv; do 
   count=$(echo $hv | grep $i -c)
   showCheckHeader "These volumes we have in the Gluster but don't have in the Heketi (lost control):"
-  
-  if [ $count -eq 0 ]; then
-    logs $i red
-  fi
+  [ $count -eq 0 ] && logs $i red
 done
 
 #Looks like these PVs were created with errors
@@ -89,10 +84,7 @@ logMarker=0
 for i in $pvs; do
   count=$(echo $gv | grep $i -c)
   showCheckHeader "These PV doesn't work, because volumes are absent in the Gluster:"
-
-  if [ $count -eq 0 ]; then 
-    logs $i yellow
-  fi 
+  [ $count -eq 0 ] && logs $i yellow 
 done
 
 #################### Functions for investigating and fixing problems ######################
@@ -162,9 +154,8 @@ logs "............. Check that volume using by PV ......................"
 logMarker=0
 for volume in $gv; do
   count=$(echo $pvs | grep $volume -c)
-  if [[ $volume = vol_* ]]; then
-    showCheckHeader "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
-  fi
+  [[ $volume = vol_* ]] && showCheckHeader "Gluster Volumes doesn't related with any PV. Maybe we have to delete them?"
+  
   if [ $count -eq 0 ] && [[ $volume = vol_* ]]; then 
     logs $volume yellow
     logs "Try to mount this volume and inspect:"
@@ -178,10 +169,7 @@ for volume in $gv; do
     read -p "Press 'Enter' to continue..."
     umount /mnt/$volume && rm -r /mnt/$volume
 
-    if [ "${fixProblems^^}" = "YES" ]; then
-      delete_gluster_volume
-    fi
-
+    [ "${fixProblems^^}" = "YES" ] && delete_gluster_volume
   fi
 done
 
@@ -272,9 +260,7 @@ for i in $gluster_pods; do
     if [ $count -eq 0 ]; then
       logs $brick yellow
       inspect_brick
-      if [ "${fixProblems^^}" = "YES" ]; then
-        search_and_delete_lost_lv
-      fi
+      [ "${fixProblems^^}" = "YES" ] && search_and_delete_lost_lv
     fi
   done
 done
